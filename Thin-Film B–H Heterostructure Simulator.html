@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thin-film B–H heterostructure simulator</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#fff;--fg:#1d2330;--mut:#667085;--card:#f4f5f8;--bd:#d3d8e0;--ac:#2f6fed}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#13161c;--fg:#e6e9ef;--mut:#98a2b3;--card:#1c212a;--bd:#343b48;--ac:#6c9bff}}
+:root[data-theme="dark"]{--bg:#13161c;--fg:#e6e9ef;--mut:#98a2b3;--card:#1c212a;--bd:#343b48;--ac:#6c9bff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--bd)}
+h1{font-size:17px;margin:0}h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:14px 0 6px}
+main{display:grid;grid-template-columns:330px 1fr;gap:12px;padding:12px;max-width:1500px;margin:auto}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+#ctl,.box{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px 12px}
+.r{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.r>select{flex:1;min-width:0}
+button,select,input[type=number]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:4px 8px}
+button{cursor:pointer}button:hover{border-color:var(--ac)}input[type=number]{width:84px}
+label{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0}label input[type=range]{flex:1}
+ul{list-style:none;margin:0 0 6px;padding:0;max-height:200px;overflow:auto;border:1px solid var(--bd);border-radius:6px;background:var(--bg)}
+li{padding:4px 8px;cursor:pointer;display:flex;gap:6px;align-items:center}li.s{background:var(--ac);color:#fff}
+i.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:700px){.g{grid-template-columns:1fr}}
+#out{display:grid;grid-template-columns:1fr 250px;gap:12px}@media(max-width:1100px){#out{grid-template-columns:1fr}}
+canvas{width:100%;display:block}.c1{height:300px}.c2{height:260px}.cs{height:430px}
+.t{font-weight:600;font-size:13px;margin-bottom:4px}#met{font:12px ui-monospace,monospace;white-space:pre-wrap;color:var(--mut)}
+dialog{max-width:760px;width:92vw;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:10px}
+pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;max-height:70vh;overflow:auto}small{color:var(--mut)}
+</style></head><body>
+<header><h1>🧲 Thin-film B–H heterostructure simulator</h1><button id="th">Physics &amp; theory</button></header>
+<main>
+<aside id="ctl">
+<h3>Add layer</h3><div class="r"><select id="mat"></select><input id="nt" type="number" value="10" min=".5" step=".5"> nm<button id="add">Add</button></div>
+<h3>Stack <small>(1 = next to substrate)</small></h3><ul id="ls"></ul>
+<div class="r"><button id="rep">Replace material</button><button id="rm">Remove</button><button id="up">▲</button><button id="dn">▼</button><button id="clr">Clear</button></div>
+<h3>Selected layer</h3><div id="ed"></div>
+<h3>Field &amp; display</h3>
+<label>H<sub>max</sub> <input id="hm" type="range" min="1" max="800" value="40"><output id="hmo">40 kA/m</output></label>
+<label>Units <select id="un"><option>SI</option><option>CGS</option></select></label>
+<label>Individual plot <select id="md"><option value="M">M vs H</option><option value="B">B vs H</option><option value="N">M / max|M|</option></select></label>
+<label><span><input type="checkbox" id="sub"> plot B − μ₀H (= μ₀M)</span></label>
+<h3>Interfacial coupling <small>(adjacent layers)</small></h3>
+<label><span><input type="checkbox" id="en"> enable</span></label>
+<label>J<sub>eb</sub> FM/AFM <input id="jeb" type="range" min="0" max=".5" step=".005" value="0"><output id="jebo">0</output></label>
+<label>J<sub>fm</sub> FM/FM <input id="jfm" type="range" min="-.5" max=".5" step=".005" value="0"><output id="jfmo">0</output></label>
+<label>AFM pinned <select id="fc"><option value="1">+H</option><option value="-1">−H</option></select></label><small>J in mJ/m²</small>
+<h3>Examples</h3><div class="r"><select id="ex"></select><button id="lx">Load</button></div>
+</aside>
+<section>
+<div id="out">
+<div>
+<div class="box"><div class="t">Individual layers <small>(dotted = virgin curve)</small></div><canvas id="ci" class="c1"></canvas></div>
+<div class="g" style="margin-top:12px"><div class="box"><div class="t">Effective B–H</div><canvas id="cb" class="c2"></canvas></div><div class="box"><div class="t">Effective M<sub>eff</sub>–H</div><canvas id="cm" class="c2"></canvas></div></div>
+</div>
+<div class="box"><div class="t">Stack cross-section</div><canvas id="cs" class="cs"></canvas>
+<label>Sweep <input id="cu" type="range" min="0" max="1000" value="0"></label><div id="met"></div></div>
+</div></section></main>
+<dialog id="dg"><pre id="tx"></pre><button onclick="this.parentNode.close()">Close</button></dialog>
+<script>
+"use strict";
+const MU0=4e-7*Math.PI,KB=1.380649e-23;
+const KN={dia:'Diamagnetic',para:'Paramagnetic',fm:'Ferromagnetic',afm:'Antiferromagnetic',fim:'Ferrimagnetic',spm:'Superparamagnetic'};
+const KS={dia:'Dia',para:'Para',fm:'FM',afm:'AFM',fim:'FiM',spm:'SPM'};
+const hy=k=>k=='fm'||k=='fim';
+// name, class, params (SI: chi dimensionless; Ms,Hc,Mr in A/m; d nm; T K; phi volume fill)
+const LIB=[
+['Bi','dia',{chi:-1.66e-4}],['Cu','dia',{chi:-1e-5}],['Au','dia',{chi:-3.4e-5}],['Ag','dia',{chi:-2.4e-5}],['Si','dia',{chi:-3.9e-6}],
+['Pt','para',{chi:2.6e-4}],['Pd','para',{chi:7.9e-4}],['Al','para',{chi:2.2e-5}],
+['Fe','fm',{Ms:1.71e6,Hc:2.4e3,Mr:1.4e6}],['Co','fm',{Ms:1.42e6,Hc:6e3,Mr:1e6}],['Ni','fm',{Ms:4.85e5,Hc:4e3,Mr:3e5}],
+['Permalloy','fm',{Ms:8e5,Hc:400,Mr:5e5}],['CoFeB','fm',{Ms:1.1e6,Hc:1e3,Mr:8e5}],
+['NiO','afm',{chi:3e-4}],['IrMn','afm',{chi:2e-4}],
+['Fe3O4','fim',{Ms:4.8e5,Hc:1.5e4,Mr:2.4e5}],['YIG','fim',{Ms:1.4e5,Hc:300,Mr:1e5}],
+['Fe3O4 NPs','spm',{Ms:4.8e5,d:10,T:300,phi:.3}],['Co NPs','spm',{Ms:1.42e6,d:5,T:300,phi:.2}],['Ni NPs','spm',{Ms:4.85e5,d:6,T:300,phi:.25}]];
+const FLD={dia:[['chi','χ ×10⁻⁵',1e-5]],para:[['chi','χ ×10⁻⁵',1e-5]],afm:[['chi','χ ×10⁻⁵',1e-5]],
+fm:[['Ms','Ms (kA/m)',1e3],['Hc','Hc (kA/m)',1e3],['Mr','Mr (kA/m)',1e3]],fim:[['Ms','Ms (kA/m)',1e3],['Hc','Hc (kA/m)',1e3],['Mr','Mr (kA/m)',1e3]],
+spm:[['Ms','Ms particle (kA/m)',1e3],['d','diameter d (nm)',1],['T','T (K)',1],['phi','fill fraction φ',1]]};
+const mk=(n,t,o)=>{const e=LIB.find(x=>x[0]==n);return Object.assign({name:n,k:e[1],t:t,chi:0,Ms:0,Hc:0,Mr:0,d:10,T:300,phi:.3,sf:false},e[2],o||{})};
+const EX=[
+['Fe / Pt / Ni trilayer',[['Fe',10],['Pt',5],['Ni',10]],0,0,0,30],
+['Co / NiO exchange bias',[['NiO',30],['Co',10]],1,.1,0,40],
+['Co / Py AF-coupled (two-step)',[['Co',5],['Permalloy',5]],1,0,-.05,30],
+['Fe3O4 nanoparticles / Co / Bi (superparamagnet)',[['Bi',20],['Co',8],['Fe3O4 NPs',40]],0,0,0,60],
+['Bi / Pt / NiO(spin-flop) / Si (linear layers)',[['Bi',40],['Pt',40],['NiO',40,{sf:true}],['Si',40]],0,0,0,300]];
+
+// ---------- physics ----------
+const lang=x=>Math.abs(x)<1e-3?x/3:1/Math.tanh(x)-1/x;       // Langevin function
+function linM(l,H){                                           // reversible layers
+ if(l.k=='spm'){const m=l.Ms*Math.PI/6*Math.pow(l.d*1e-9,3);return l.phi*l.Ms*lang(MU0*m*H/(KB*l.T))}
+ let M=l.chi*H;
+ if(l.k=='afm'&&l.sf){const s=1/(1+Math.exp(-2*(Math.abs(H)-6e4)/8e3)),s0=1/(1+Math.exp(-2*6e4/8e3));M+=1.5e3*(s-s0)*Math.sign(H)}
+ return M}
+class Hy{ // tanh-branch hysteresis with reversal memory (monotonic, |M|<=Ms)
+ constructor(Ms,Hc,Mr){this.Ms=Math.max(Ms,1);this.Hc=Math.max(Hc,1);const r=Math.min(Math.max(Mr/this.Ms,1e-3),.995);this.w=this.Hc/Math.atanh(r);this.e=1e-3*this.w;this.on=0;this.d=1}
+ A(H){return this.Ms*Math.tanh((H-this.Hc)/this.w)}D(H){return this.Ms*Math.tanh((H+this.Hc)/this.w)}
+ step(H){const S=this,Ms=S.Ms;if(!S.on){S.on=1;S.Ha=S.Hp=H;S.Ma=S.Mp=0}
+  if(S.d>0){if(H<S.Hp-S.e){S.Ha=S.Hp;S.Ma=S.Mp;S.d=-1;S.Hp=H}else if(H>S.Hp)S.Hp=H}
+  else{if(H>S.Hp+S.e){S.Ha=S.Hp;S.Ma=S.Mp;S.d=1;S.Hp=H}else if(H<S.Hp)S.Hp=H}
+  let M,q;
+  if(S.d>0){const dn=Ms-S.A(S.Ha);q=dn>1e-9*Ms?(Ms-S.Ma)/dn:1;M=Ms-(Ms-S.A(H))*Math.min(Math.max(q,0),10)}
+  else{const dn=S.D(S.Ha)+Ms;q=dn>1e-9*Ms?(S.Ma+Ms)/dn:1;M=-Ms+(S.D(H)+Ms)*Math.min(Math.max(q,0),10)}
+  M=Math.min(Math.max(M,-Ms),Ms);if(H==S.Hp)S.Mp=M;return M}}
+function run(L,P){ // sweep 0 -> +Hmax -> -Hmax -> +Hmax; returns per-layer M, M_eff, B_eff
+ const n=L.length,nh=200,Hm=P.Hmax*1e3,H=[];
+ for(let i=0;i<=nh;i++)H.push(Hm*i/nh);
+ for(let i=1;i<=2*nh;i++)H.push(Hm-Hm*i/nh);
+ for(let i=1;i<=2*nh;i++)H.push(-Hm+Hm*i/nh);
+ const N=H.length,M=L.map(()=>new Float64Array(N)),bias=[],nb=[],mod=[];
+ const pf=i=>1/(MU0*Math.max(L[i].Ms,1)*Math.max(L[i].t*1e-9,1e-10));
+ L.forEach((l,i)=>{
+  if(!hy(l.k)){for(let k=0;k<N;k++)M[i][k]=linM(l,H[k]);return}
+  let b=0;const nn=[];
+  if(P.en)for(const j of[i-1,i+1])if(j>=0&&j<n){
+   if(L[j].k=='afm')b+=P.jeb*1e-3*P.fc*pf(i);else if(hy(L[j].k)&&P.jfm)nn.push([j,P.jfm*1e-3*pf(i)])}
+  bias[i]=b;nb[i]=nn;mod[i]=new Hy(l.Ms,l.Hc+.3*Math.abs(b),l.Mr)});
+ let mp=new Array(n).fill(0);
+ for(let k=0;k<N;k++){const mn=mp.slice();
+  L.forEach((l,i)=>{if(!mod[i])return;let h=H[k]+bias[i];for(const[j,c]of nb[i])h+=c*mp[j];const v=mod[i].step(h);M[i][k]=v;mn[i]=v/Math.max(l.Ms,1)});mp=mn}
+ const T=L.reduce((a,l)=>a+l.t,0),Me=new Float64Array(N);
+ for(let k=0;k<N;k++){let s=0;for(let i=0;i<n;i++)s+=M[i][k]*L[i].t;Me[k]=s/T}
+ return{H,M,Me,Be:Me.map((m,k)=>MU0*(H[k]+m)),N,ls:nh,Hm,T}}
+function cross(a,b){for(let i=0;i<a.length-1;i++){const x=a[i],y=a[i+1];if(x*y<=0&&x!=y)return b[i]+(-x/(y-x))*(b[i+1]-b[i])}return NaN}
+function metrics(s){const h=Math.floor((s.N-1-s.ls)/2),H=s.H.slice(s.ls),M=Array.from(s.Me.slice(s.ls));
+ const Hd=H.slice(0,h+1),Md=M.slice(0,h+1),Hu=H.slice(h),Mu=M.slice(h);
+ const a=cross(Md,Hd),b=cross(Mu,Hu),c=cross(Hd,Md),d=cross(Hu,Mu);
+ return{Ms:(M[0]-M[h])/2,Mr:(c-d)/2,Hc:(b-a)/2,sh:(a+b)/2}}
+//UI
+const $=q=>document.querySelector(q),css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const U={SI:{H:1e-3,M:1e-3,B:1e3,h:'kA/m',m:'kA/m',b:'mT'},CGS:{H:4*Math.PI/1000,M:1e-3,B:1e4,h:'Oe',m:'emu/cm³',b:'G'}};
+const PAL=['#4e79a7','#f28e2b','#59a14f','#e15759','#b07aa1','#76b7b2','#edc948','#9c755f','#ff9da7','#86bc86'];
+let layers=[],sel=-1,sim=null,cur=0;
+const P=()=>({Hmax:+$('#hm').value,en:$('#en').checked,jeb:+$('#jeb').value,jfm:+$('#jfm').value,fc:+$('#fc').value});
+const fmt=v=>isFinite(v)?String(+v.toPrecision(3)):'—';
+function tk(a,b){const s=(b-a)/5,m=Math.pow(10,Math.floor(Math.log10(s))),f=s/m,st=(f<1.5?1:f<3.5?2:f<7.5?5:10)*m,o=[];for(let v=Math.ceil(a/st)*st;v<=b+1e-9*st;v+=st)o.push(Math.abs(v)<1e-9*st?0:v);return o}
+function cvs(c){const r=c.getBoundingClientRect(),d=devicePixelRatio||1;c.width=Math.max(1,r.width*d);c.height=Math.max(1,r.height*d);const g=c.getContext('2d');g.setTransform(d,0,0,d,0,0);g.font='11px system-ui,sans-serif';return[g,r.width,r.height]}
+function plot(c,ser,xm,xl,yl,leg){
+ const[g,W,Ht]=cvs(c),L=58,R=10,T=8,B=34,fg=css('--fg'),gr=css('--bd');
+ let y0=1e300,y1=-1e300;for(const s of ser)if(s.y)for(let i=s.a;i<s.b;i++){const v=s.y[i];if(v<y0)y0=v;if(v>y1)y1=v}
+ if(!(y1>y0)){y0-=1;y1+=1}const p=.07*(y1-y0);y0-=p;y1+=p;
+ const X=x=>L+(x+xm)/(2*xm)*(W-L-R),Y=y=>Ht-B-(y-y0)/(y1-y0)*(Ht-B-T);
+ g.strokeStyle=gr;g.fillStyle=fg;g.lineWidth=1;g.textAlign='center';
+ for(const v of tk(-xm,xm)){g.beginPath();g.moveTo(X(v),T);g.lineTo(X(v),Ht-B);g.stroke();g.fillText(fmt(v),X(v),Ht-B+14)}
+ g.textAlign='right';for(const v of tk(y0,y1)){g.beginPath();g.moveTo(L,Y(v));g.lineTo(W-R,Y(v));g.stroke();g.fillText(fmt(v),L-4,Y(v)+4)}
+ g.strokeStyle=fg;g.globalAlpha=.5;if(y0<0&&y1>0){g.beginPath();g.moveTo(L,Y(0));g.lineTo(W-R,Y(0));g.stroke()}g.beginPath();g.moveTo(X(0),T);g.lineTo(X(0),Ht-B);g.stroke();g.globalAlpha=1;
+ g.strokeRect(L,T,W-L-R,Ht-B-T);g.textAlign='center';g.fillText(xl,(L+W-R)/2,Ht-5);
+ g.save();g.translate(12,(T+Ht-B)/2);g.rotate(-Math.PI/2);g.fillText(yl,0,0);g.restore();
+ g.save();g.beginPath();g.rect(L,T,W-L-R,Ht-B-T);g.clip();
+ for(const s of ser){if(s.pt){g.fillStyle=s.c;g.strokeStyle=fg;g.beginPath();g.arc(X(s.pt[0]),Y(s.pt[1]),4.5,0,7);g.fill();g.stroke();continue}
+  g.strokeStyle=s.c;g.lineWidth=s.w||1.6;g.setLineDash(s.dash?[3,3]:[]);g.beginPath();
+  for(let i=s.a;i<s.b;i++){const x=X(s.x[i]),y=Y(s.y[i]);i==s.a?g.moveTo(x,y):g.lineTo(x,y)}g.stroke()}
+ g.restore();g.setLineDash([]);
+ if(leg){g.textAlign='left';leg.forEach((e,i)=>{g.fillStyle=e[1];g.fillRect(L+8,T+7+i*14,10,3);g.fillStyle=fg;g.fillText(e[0],L+22,T+12+i*14)})}}
+function draw(){
+ const u=U[$('#un').value],md=$('#md').value,sb=$('#sub').checked,N=sim.N,ls=sim.ls,xm=sim.Hm*u.H*1.03;
+ const X=Float64Array.from(sim.H,h=>h*u.H),ser=[],leg=[];
+ layers.forEach((l,i)=>{const m=sim.M[i];let y;
+  if(md=='M')y=m.map(v=>v*u.M);else if(md=='B')y=m.map((v,k)=>MU0*(sb?v:sim.H[k]+v)*u.B);
+  else{const mx=Math.max(1e-30,...m.map(Math.abs));y=m.map(v=>v/mx)}
+  const c=PAL[i%10];ser.push({x:X,y,c,a:0,b:ls+1,dash:1,w:1},{x:X,y,c,a:ls,b:N},{pt:[X[cur],y[cur]],c});leg.push([`${i+1}: ${l.name} (${l.t} nm)`,c])});
+ plot($('#ci'),ser,xm,`H (${u.h})`,md=='M'?`M (${u.m})`:md=='B'?(sb?`μ₀M (${u.b})`:`B (${u.b})`):'M / max|M|',leg);
+ const yB=Float64Array.from(sim.Be,(b,k)=>(sb?MU0*sim.Me[k]:b)*u.B),yM=Float64Array.from(sim.Me,v=>v*u.M),fg=css('--fg');
+ plot($('#cb'),[{x:X,y:yB,c:'#7a8599',a:0,b:ls+1,dash:1,w:1},{x:X,y:yB,c:fg,a:ls,b:N,w:2},{pt:[X[cur],yB[cur]],c:'#f5c542'}],xm,`H (${u.h})`,sb?`B − μ₀H (${u.b})`:`B_eff (${u.b})`);
+ plot($('#cm'),[{x:X,y:yM,c:'#e8a0a0',a:0,b:ls+1,dash:1,w:1},{x:X,y:yM,c:'#d64545',a:ls,b:N,w:2},{pt:[X[cur],yM[cur]],c:'#f5c542'}],xm,`H (${u.h})`,`M_eff (${u.m})`);
+ schem(u);const m=metrics(sim);
+ $('#met').textContent=`t_tot = ${sim.T.toFixed(1)} nm\nMs = ${fmt(m.Ms*u.M)} ${u.m}   Mr = ${fmt(m.Mr*u.M)} ${u.m}\nHc = ${fmt(m.Hc*u.H)} ${u.h}   H_shift = ${fmt(m.sh*u.H)} ${u.h}`}
+function arrow(g,x0,y0,x1,y1){g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y1);g.stroke();const a=Math.atan2(y1-y0,x1-x0);g.beginPath();g.moveTo(x1,y1);g.lineTo(x1-9*Math.cos(a-.4),y1-9*Math.sin(a-.4));g.lineTo(x1-9*Math.cos(a+.4),y1-9*Math.sin(a+.4));g.closePath();g.fill()}
+function schem(u){
+ const[g,W,Hh]=cvs($('#cs')),fg=css('--fg');g.clearRect(0,0,W,Hh);if(!layers.length)return;
+ const t=layers.map(l=>l.t),T=t.reduce((a,b)=>a+b,0),h=t.map(x=>Math.max(x,.05*T)),Hd=h.reduce((a,b)=>a+b,0);
+ const top=52,sub=22,sc=(Hh-top-sub-8)/Hd,bw=Math.min(110,W*.42),x0=8;let y=Hh-sub-8;
+ g.fillStyle=css('--bd');g.fillRect(x0,Hh-sub-8,bw,sub);g.fillStyle=fg;g.textAlign='center';g.fillText('substrate',x0+bw/2,Hh-14);
+ const lab=[];
+ layers.forEach((l,i)=>{const hh=h[i]*sc;y-=hh;g.fillStyle=PAL[i%10];g.globalAlpha=.8;g.fillRect(x0,y,bw,hh);g.globalAlpha=1;g.strokeStyle=fg;g.lineWidth=1;g.strokeRect(x0,y,bw,hh);
+  const mr=hy(l.k)?sim.M[i][cur]/Math.max(l.Ms,1):l.k=='spm'?sim.M[i][cur]/(l.phi*l.Ms):0;
+  if(Math.abs(mr)>.02){g.strokeStyle=fg;g.fillStyle=fg;g.lineWidth=2;const L=.4*bw*mr;arrow(g,x0+bw/2-L,y+hh/2,x0+bw/2+L,y+hh/2)}
+  lab.push([y+hh/2,`${i+1}: ${l.name} (${KS[l.k]}) ${l.t} nm`])});
+ g.textAlign='left';let last=-1e9;lab.reverse().forEach(e=>{let ly=Math.max(e[0],last+14);if(ly<last+14)ly=last+14;last=ly;g.fillStyle=fg;g.fillText(e[1],x0+bw+8,ly+4)});
+ const H=sim.H[cur],s=H/sim.Hm;g.fillStyle='#2f6fed';g.strokeStyle='#2f6fed';g.lineWidth=2.5;
+ if(Math.abs(s)>.02)arrow(g,x0+bw/2-.45*bw*s,22,x0+bw/2+.45*bw*s,22);g.textAlign='left';g.fillText(`in-plane H = ${fmt(H*u.H)} ${u.h}`,x0,42)}
+function calc(){if(!layers.length){sim=null;['ci','cb','cm','cs'].forEach(i=>cvs($('#'+i)));$('#met').textContent='Stack is empty';return}
+ sim=run(layers,P());$('#cu').max=sim.N-1;draw()}
+function lst(){$('#ls').innerHTML=layers.map((l,i)=>`<li data-i="${i}" class="${i==sel?'s':''}"><i class="sw" style="background:${PAL[i%10]}"></i>${i+1}. ${l.name} <small style="color:inherit;opacity:.75">${KS[l.k]} · ${l.t} nm</small></li>`).join('')}
+function edit(){const e=$('#ed'),l=layers[sel];if(!l){e.textContent='No layer selected';return}
+ let h=`<b>${sel+1}: ${l.name}</b> <small>${KN[l.k]}</small><label>t (nm)<input type="range" min=".5" max="200" step=".5" value="${l.t}" data-k="t"><output>${l.t}</output></label>`;
+ for(const[k,lb,s]of FLD[l.k])h+=`<label>${lb}<input type="number" step="any" value="${+(l[k]/s).toPrecision(5)}" data-k="${k}" data-s="${s}"></label>`;
+ if(l.k=='afm')h+=`<label><span><input type="checkbox" id="sf" ${l.sf?'checked':''}> spin-flop step</span></label>`;
+ e.innerHTML=h}
+function all(){lst();edit();calc()}
+function pick(){return LIB.find(x=>x[0]==$('#mat').value)[0]}
+$('#mat').innerHTML=LIB.map(x=>`<option value="${x[0]}">${x[0]} — ${KN[x[1]]}</option>`).join('');$('#mat').value='Fe';
+$('#ex').innerHTML=EX.map((x,i)=>`<option value="${i}">${x[0]}</option>`).join('');
+$('#add').onclick=()=>{layers.push(mk(pick(),Math.max(.5,+$('#nt').value||10)));sel=layers.length-1;all()};
+$('#rep').onclick=()=>{if(sel>=0){const t=layers[sel].t;layers[sel]=mk(pick(),t);all()}};
+$('#rm').onclick=()=>{if(sel>=0){layers.splice(sel,1);sel=Math.min(sel,layers.length-1);all()}};
+$('#clr').onclick=()=>{layers=[];sel=-1;all()};
+const mv=d=>{const j=sel+d;if(sel>=0&&j>=0&&j<layers.length){[layers[sel],layers[j]]=[layers[j],layers[sel]];sel=j;all()}};
+$('#up').onclick=()=>mv(-1);$('#dn').onclick=()=>mv(1);
+$('#ls').onclick=e=>{const li=e.target.closest('li');if(li){sel=+li.dataset.i;lst();edit()}};
+$('#ed').addEventListener('input',e=>{const t=e.target,l=layers[sel];if(!l)return;
+ if(t.id=='sf'){l.sf=t.checked;calc();return}
+ const v=parseFloat(t.value);if(isNaN(v)||!t.dataset.k)return;l[t.dataset.k]=v*(+t.dataset.s||1);
+ if(t.dataset.k=='t'){l.t=Math.max(.5,l.t);t.nextElementSibling.textContent=l.t;lst()}
+ if(hy(l.k))l.Mr=Math.min(l.Mr,.995*l.Ms);calc()});
+const lo=(id,o,f)=>$(id).oninput=()=>{$(o).textContent=f();calc()};
+lo('#hm','#hmo',()=>$('#hm').value+' kA/m');lo('#jeb','#jebo',()=>$('#jeb').value);lo('#jfm','#jfmo',()=>$('#jfm').value);
+['#en','#fc'].forEach(i=>$(i).onchange=calc);['#un','#md','#sub'].forEach(i=>$(i).onchange=()=>sim&&draw());
+$('#cu').oninput=()=>{cur=+$('#cu').value;sim&&draw()};
+function load(i){const x=EX[i];layers=x[1].map(a=>mk(a[0],a[1],a[2]));sel=0;$('#en').checked=!!x[2];$('#jeb').value=x[3];$('#jfm').value=x[4];$('#hm').value=x[5];
+ $('#jebo').textContent=x[3];$('#jfmo').textContent=x[4];$('#hmo').textContent=x[5]+' kA/m';lst();edit();calc();cur=sim.ls+Math.floor((sim.N-1-sim.ls)/4);$('#cu').value=cur;draw()}
+$('#lx').onclick=()=>load(+$('#ex').value);
+$('#tx').textContent=`PHYSICS & THEORY
+B = μ0 (H + M)   [B in T; H, M in A/m]. In-plane field, demagnetizing factor ≈ 0.
+CGS: 1 Oe = 1000/4π A/m, 1 emu/cm³ = 1 kA/m, 1 T = 10⁴ G.
+
+Diamagnet (Bi, Cu, Au, Ag, Si):  M = χH, χ < 0 (−10⁻⁶ … −10⁻⁴); no remanence, no coercivity.
+Paramagnet (Pt, Pd, Al):         M = χH, χ > 0; no remanence, no coercivity.
+
+Superparamagnet (nanoparticle film, T above blocking temperature):
+  Non-interacting single-domain particles of diameter d, moment m = Ms·(π/6)d³.
+  M(H) = φ·Ms·L(x),  L(x) = coth x − 1/x,  x = μ0 m H /(k_B T)
+  φ = particle volume fraction. Anhysteretic: Mr = 0, Hc = 0.
+  Low field: M ≈ φ μ0 Ms² V H /(3 k_B T) (Curie-like 1/T); high field saturates at φ·Ms.
+  Larger d or lower T ⇒ steeper rise; real particles block (hysteresis) below T_B.
+
+Ferromagnet / ferrimagnet: tanh branches
+  M_asc = Ms tanh((H−Hc)/w), M_desc = Ms tanh((H+Hc)/w), w = Hc / artanh(Mr/Ms).
+  After a reversal at (Ha, Ma) the curve is a scaled copy of the new branch through
+  (Ha, Ma): continuous, monotonic, |M| ≤ Ms. Major loops exact, minor loops approximate.
+  Ferrimagnets: same form, lower Ms (Fe3O4, YIG).
+
+Antiferromagnet: M = χH, optional smooth spin-flop step of 1.5 kA/m near 60 kA/m.
+
+Stack (equal in-plane area):
+  M_eff = Σ M_i t_i / t_tot,   B_eff = μ0 (H + M_eff)
+
+Interfacial exchange (adjacent layers): layer i feels H_ex = J m_j / (μ0 Ms_i t_i).
+  FM/AFM: pinned AFM (m_j = ±1) shifts the loop by H_eb = −J/(μ0 Ms t_FM);
+          heuristic ΔHc = 0.3|H_ex|.
+  FM/FM:  J < 0 with different Hc gives two-step switching.
+  Explicit scheme (neighbour state from the previous field step).
+
+Sweep: 0 → +Hmax → −Hmax → +Hmax. Solid = closed cycle, dotted = virgin curve.
+Metrics: Ms, Mr, Hc from M_eff=0 crossings, H_shift = loop-centre offset.`;
+$('#th').onclick=()=>$('#dg').showModal();
+addEventListener('resize',()=>sim&&draw());
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>sim&&draw());
+load(3);
+</script></body></html>
